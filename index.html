@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Aerogenerador 3D · Energías Alternativas · Universidad de América 2026</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        :root{
+            --azul-uni:#0f3352;
+            --azul-2:#1f6f9b;
+            --verde:#1f8b5f;
+            --ambar:#f0a500;
+            --rojo:#c0392b;
+            --card:rgba(255,255,255,0.92);
+            --panel-bg:rgba(10,30,48,0.78);
+            --texto:#eaf2f8;
+        }
+        *{box-sizing:border-box;}
+        body{
+            margin:0;
+            overflow:hidden;
+            font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color:#87CEEB;
+        }
+        #canvas-container{width:100vw;height:100vh;display:block;}
+
+        /* ---------- Encabezado institucional ---------- */
+        #header{
+            position:absolute;top:10px;left:6px;z-index:20;
+            color:#fff;pointer-events:none;
+            max-width:290px;
+        }
+        #header .card{
+            background:linear-gradient(135deg,var(--azul-uni),var(--azul-2));
+            border-radius:12px;padding:12px 14px;
+            box-shadow:0 6px 18px rgba(0,0,0,0.28);
+            border:1px solid rgba(255,255,255,0.18);
+        }
+        #header h1{margin:0 0 2px 0;font-size:1.1em;letter-spacing:.2px;}
+        #header .curso{font-size:.82em;font-weight:600;opacity:.95;margin:2px 0 6px 0;}
+        #header .meta{font-size:.72em;line-height:1.5;opacity:.92;display:flex;flex-direction:column;gap:1px;}
+        #header .escudo{font-size:1.3em;margin-bottom:2px;line-height:1;}
+
+        /* ---------- Panel derecho de análisis ---------- */
+        #analyze-panel{
+            position:absolute;top:14px;right:14px;width:350px;max-width:90vw;
+            max-height:92vh;overflow-y:auto;z-index:20;
+            background:var(--panel-bg);border-radius:14px;padding:14px 14px 16px;
+            backdrop-filter:blur(4px);
+            box-shadow:0 8px 24px rgba(0,0,0,0.3);
+            color:var(--texto);
+            font-size:.85rem;
+        }
+        #analyze-panel::-webkit-scrollbar{width:8px;}
+        #analyze-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.25);border-radius:8px;}
+        #analyze-panel h2{font-size:1rem;margin:0 0 8px;letter-spacing:.3px;color:#fff;border-bottom:1px solid rgba(255,255,255,0.18);padding-bottom:6px;}
+        .seccion{margin-bottom:14px;}
+        .seccion summary{
+            cursor:pointer;font-weight:700;color:#fff;
+            display:flex;align-items:center;gap:8px;padding:6px 4px;
+            border-bottom:1px dashed rgba(255,255,255,0.18);border-radius:6px;user-select:none;
+        }
+        .seccion summary:hover{background:rgba(255,255,255,0.06);}
+        .seccion[open] summary{border-bottom:1px solid rgba(255,255,255,0.2);}
+        .icono{font-size:1rem;}
+
+        /* Telemetría */
+        .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+        .read{background:rgba(255,255,255,0.07);border-radius:8px;padding:8px 10px;border:1px solid rgba(255,255,255,0.08);}
+        .read .lbl{font-size:.72em;color:#b9d2e6;text-transform:uppercase;letter-spacing:.4px;}
+        .read .val{font-size:1.25em;font-weight:700;color:#fff;margin-top:2px;font-variant-numeric:tabular-nums;}
+        .read.full{grid-column:1/3;}
+        .status{display:inline-flex;align-items:center;gap:6px;font-size:.8em;font-weight:600;padding:3px 8px;border-radius:20px;margin-top:3px;}
+        .status.verde{background:rgba(31,139,95,0.25);color:#8fe3c0;}
+        .status.ambar{background:rgba(240,165,0,0.22);color:#ffd98a;}
+        .status.rojo{background:rgba(192,57,43,0.25);color:#ffb3ab;}
+        .status.gris{background:rgba(150,160,170,0.25);color:#cdd6de;}
+        /* barra Cp/Betz */
+        .bar{height:8px;background:rgba(255,255,255,0.12);border-radius:6px;overflow:hidden;margin-top:4px;}
+        .bar>div{height:100%;background:linear-gradient(90deg,var(--verde),#5fd0a0);width:0%;transition:width .2s;}
+        .bar-meta{display:flex;justify-content:space-between;font-size:.72em;color:#b9d2e6;margin-top:3px;}
+
+        /* Controles */
+        .campo{margin-bottom:9px;}
+        .campo label{display:block;font-size:.75em;color:#cfe2f0;margin-bottom:3px;font-weight:600;}
+        .campo input[type=number], .campo select{
+            width:100%;padding:5px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.25);
+            background:rgba(255,255,255,0.9);color:#123;font-size:.85rem;
+        }
+        .campo input[type=range]{width:100%;accent-color:var(--verde);}
+        .campo .eg{font-size:.7em;color:#9fb9cd;margin-top:2px;}
+        .btn{
+            width:100%;padding:8px;border:none;border-radius:8px;cursor:pointer;
+            background:var(--verde);color:#fff;font-weight:700;font-size:.82rem;
+            margin-top:4px;transition:.15s;
+        }
+        .btn:hover{filter:brightness(1.1);}
+        .btn.sec{background:var(--azul-2);}
+        .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.3);}
+        .btn-row{display:flex;gap:8px;}
+        .btn-row .btn{flex:1;}
+
+        /* Canvas de gráficos */
+        canvas.curva{width:100%;height:auto;display:block;background:rgba(255,255,255,0.95);border-radius:8px;margin-top:6px;padding:2px;}
+        .mini-nota{font-size:.72em;color:#9fb9cd;margin-top:3px;}
+
+        /* Teoría */
+        .teoria{font-size:.8rem;line-height:1.55;color:#dbe9f4;}
+        .teoria b{color:#fff;}
+        .teoria .formula{
+            background:rgba(0,0,0,0.25);border-left:3px solid var(--ambar);
+            padding:8px 10px;border-radius:6px;font-family:'Consolas',monospace;margin:6px 0;
+            color:#ffe2a6;font-size:.8rem;overflow-x:auto;white-space:nowrap;
+        }
+        .teoria .fallo{color:#ffb3ab;}
+        .tag{display:inline-block;background:rgba(255,255,255,0.12);border-radius:4px;padding:1px 6px;font-size:.7em;margin:1px 2px;color:#cfe2f0;}
+
+        /* ---------- Panel inferior de viento ---------- */
+        #ui-panel{
+            position:absolute;bottom:18px;left:50%;transform:translateX(-50%);
+            background:rgba(255,255,255,0.92);padding:14px 22px;border-radius:14px;
+            box-shadow:0 6px 16px rgba(0,0,0,0.18);
+            display:flex;gap:34px;align-items:flex-end;z-index:20;flex-wrap:wrap;justify-content:center;
+        }
+        .control-group{display:flex;flex-direction:column;align-items:center;}
+        .control-group label{font-weight:700;margin-bottom:8px;color:#23405a;font-size:.82rem;text-align:center;}
+        input[type="range"]{width:170px;accent-color:var(--verde);}
+        .value-display{font-size:.95em;color:#34607f;margin-top:4px;font-weight:600;font-variant-numeric:tabular-nums;}
+
+        #loading{
+            position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:5;
+            background:#123;color:#cfe2f0;font-size:1rem;text-align:center;padding:20px;
+        }
+        @media(max-width:800px){
+            #header{max-width:260px;font-size:.85rem;}
+            #analyze-panel{width:290px;}
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Encabezado institucional con las credenciales -->
+    <div id="header">
+        <div class="card">
+            <div class="escudo">⚙️</div>
+            <h1>Simulador de Aerogenerador 3D</h1>
+            <div class="curso">Energías Alternativas · Curso de Ingeniería</div>
+            <div class="meta">
+                <span><b>Universidad de América</b></span>
+                <span>Año 2026</span>
+                <span>Docente: Ph.D. Juan Sandoval Herrera</span>
+                <span style="opacity:.8">Aerogenerador de eje horizontal (HAWT) · Est. 3.º a 6.º semestre de Ingeniería</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de análisis / laboratorio -->
+    <div id="analyze-panel">
+
+        <!-- Telemetría en vivo -->
+        <div class="seccion" open>
+            <h2>📊 Telemetría en vivo</h2>
+            <div class="grid2">
+                <div class="read"><div class="lbl">Viento en el buje</div><div class="val" id="windNow">—</div></div>
+                <div class="read"><div class="lbl">Viento ref. 10 m</div><div class="val" id="windRef">—</div></div>
+                <div class="read"><div class="lbl">Potencia disponible</div><div class="val" id="availPower">—</div></div>
+                <div class="read"><div class="lbl">Potencia generada</div><div class="val" id="genPower">—</div></div>
+                <div class="read full"><div class="lbl">Estado operativo</div>
+                    <span class="status gris" id="status">—</span>
+                </div>
+                <div class="read"><div class="lbl">RPM del rotor</div><div class="val" id="rpm">—</div></div>
+                <div class="read"><div class="lbl">TSR (λ)</div><div class="val" id="tsr">—</div></div>
+                <div class="read"><div class="lbl">Cp (coef. potencia)</div><div class="val" id="cp">—</div></div>
+                <div class="read"><div class="lbl">Pitch β</div><div class="val" id="pitchNow">—</div></div>
+                <div class="read"><div class="lbl">% de nominal</div><div class="val" id="ratedPct">—</div></div>
+            </div>
+            <div style="margin-top:8px">
+                <div class="lbl" style="font-size:.72em;color:#b9d2e6;margin-bottom:2px">Cp vs Límite de Betz (59,3%)</div>
+                <div class="bar"><div id="cpBar"></div></div>
+                <div class="bar-meta"><span id="cpBetz">0%</span><span>Betz máx.</span></div>
+            </div>
+        </div>
+
+        <!-- Control y protección -->
+        <div class="seccion" open>
+            <h2>🛡️ Control y protección</h2>
+            <div class="status gris" id="protState">⚙️ Standby</div>
+            <div class="eg" id="protReason" style="margin:4px 0 8px;color:#cfe2f0;opacity:.95">—</div>
+            <div class="btn-row">
+                <button class="btn" id="btnStop" style="background:var(--rojo)">🛑 Paro de emergencia</button>
+                <button class="btn ghost" id="btnResume">▶ Reanudar</button>
+            </div>
+            <div style="margin-top:8px">
+                <div class="lbl" style="font-size:.72em;color:#b9d2e6;margin-bottom:2px">Historial del controlador</div>
+                <div id="protLog" style="font-size:.72em;color:#cfe2f0;opacity:.92">(sin eventos)</div>
+            </div>
+        </div>
+
+        <!-- Parámetros de la turbina -->
+        <details class="seccion" open>
+            <summary><span class="icono">🛠️</span> Parámetros de la turbina</summary>
+            <div style="padding-top:8px">
+                <div class="campo"><label>Diámetro del rotor (m)</label>
+                    <input type="number" id="pDiam" min="5" max="200" step="1" value="80"></div>
+                <div class="campo"><label>Altura del buje / torre (m)</label>
+                    <input type="number" id="pHub" min="10" max="200" step="1" value="80">
+                    <div class="eg">↑ Al subirla, el viento en el rotor (y la potencia) aumentan.</div></div>
+                <div class="campo"><label>Superficie / terreno (α)</label>
+                    <select id="pTerrain">
+                        <option value="0.10">Mar abierto (α = 0.10)</option>
+                        <option value="0.14" selected>Campo abierto (α = 0.14)</option>
+                        <option value="0.20">Zona suburbana (α = 0.20)</option>
+                        <option value="0.30">Ciudad / bosque (α = 0.30)</option>
+                    </select>
+                    <div class="eg">Exponente de Hellmann: terreno rugoso obliga a torres más altas.</div></div>
+                <div class="campo"><label>Altura de referencia z_ref (m)</label>
+                    <input type="number" id="pZref" min="3" max="40" step="1" value="10">
+                    <div class="eg">Altura del anemómetro; donde se "mide" el viento.</div></div>
+                <div class="campo"><label>Potencia nominal (kW)</label>
+                    <input type="number" id="pRated" min="20" max="20000" step="50" value="2000"></div>
+                <div class="campo"><label>Velocidad cut-in (m/s)</label>
+                    <input type="number" id="pCutIn" min="0" max="8" step="0.5" value="3"></div>
+                <div class="campo"><label>Velocidad nominal (m/s)</label>
+                    <input type="number" id="pRatedV" min="5" max="20" step="0.5" value="11"></div>
+                <div class="campo"><label>Velocidad cut-out (m/s)</label>
+                    <input type="number" id="pCutOut" min="12" max="40" step="1" value="25"></div>
+                <div class="campo"><label>Cp máximo (eficiencia del rotor)</label>
+                    <input type="range" id="pCpMax" min="0.2" max="0.593" step="0.001" value="0.45">
+                    <div class="eg" id="pCpMaxVal">0.450</div></div>
+                <div class="campo"><label>Ángulo de paso / pitch β (°)</label>
+                    <input type="range" id="pPitch" min="-10" max="45" step="0.5" value="0">
+                    <div class="eg" id="pPitchVal">0.0° (máx. Cp)</div>
+                    <label style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:.74em;font-weight:600;color:#cfe2f0;">
+                        <input type="checkbox" id="pAuto" checked style="width:auto;">
+                        Regulación automática (feathering)
+                    </label>
+                    <div class="eg" style="margin-top:4px">Actívala para ver la turbina "abanicar" las aspas y sostener la potencia nominal.</div></div>
+                <div class="campo"><label>Densidad del aire ρ (kg/m³)</label>
+                    <input type="number" id="pRho" min="0.7" max="1.4" step="0.01" value="1.225">
+                    <div class="eg">nivel del mar: 1,225 · media montaña: ~ 0,9-1,0</div></div>
+                <div class="btn-row">
+                    <button class="btn" id="applyParams">Aplicar</button>
+                    <button class="btn ghost" id="resetParams">Restablecer</button>
+                </div>
+            </div>
+        </details>
+
+        <!-- Curvas -->
+        <details class="seccion" open>
+            <summary><span class="icono">📈</span> Curva de potencia</summary>
+            <canvas id="powerChart" class="curva" width="320" height="200"></canvas>
+            <div class="mini-nota">Verde = máquina · Ambar = ideal Betz · Gris = potencia disponible del viento.</div>
+        </details>
+
+        <details class="seccion" open>
+            <summary><span class="icono">🌡️</span> Perfil vertical del viento v(z)</summary>
+            <canvas id="profileChart" class="curva" width="320" height="200"></canvas>
+            <div class="mini-nota">La velocidad crece con la altura (ley de potencia). El punto rojo es el viento actual en el buje (a <span id="hubLabel">80</span> m).</div>
+        </details>
+
+        <details class="seccion">
+            <summary><span class="icono">🌀</span> Coeficiente de potencia Cp(λ)</summary>
+            <canvas id="cpChart" class="curva" width="320" height="185"></canvas>
+            <div class="mini-nota">Relación de velocidades en punta (TSR) vs eficiencia del rotor.</div>
+        </details>
+
+        <!-- Producción anual -->
+        <details class="seccion">
+            <summary><span class="icono">🗓️</span> Producción anual (AEP)</summary>
+            <div style="padding-top:8px">
+                <div class="campo"><label>Velocidad media del viento (m/s)</label>
+                    <input type="range" id="meanWind" min="3" max="12" step="0.1" value="6.5">
+                    <div class="eg" id="meanWindVal">6,5 m/s</div></div>
+                <div class="campo"><label>Factor de forma k (Weibull · k=2 Rayleigh)</label>
+                    <input type="range" id="shapeK" min="1.2" max="3.2" step="0.05" value="2.0">
+                    <div class="eg" id="shapeKVal">2,00 (Rayleigh)</div></div>
+                <div class="grid2">
+                    <div class="read full"><div class="lbl">Energía anual (AEP)</div><div class="val" id="aep">—</div></div>
+                    <div class="read"><div class="lbl">Factor de capacidad</div><div class="val" id="cf">—</div></div>
+                    <div class="read"><div class="lbl">Hogares (~2500 kWh/año)</div><div class="val" id="homes">—</div></div>
+                </div>
+                <canvas id="windDistChart" class="curva" width="320" height="160"></canvas>
+                <div class="mini-nota">Curva de potencia superpuesta a la distribución de Weibull del viento.</div>
+            </div>
+        </details>
+
+        <!-- Teoría -->
+        <details class="seccion">
+            <summary><span class="icono">📚</span> Teoría / Glosario</summary>
+            <div class="teoria" style="padding-top:8px">
+                <p><b>Potencia disponible del viento</b> (potencia específica):</p>
+                <div class="formula">P_viento = ½ · ρ · A · v³</div>
+                <p>con ρ = densidad del aire, <b>A = π (D/2)²</b> el área barrida y v la velocidad del viento. La energía crece con el <b>cubo</b> de la velocidad (un viento al doble → 8× más potencia).</p>
+                <p><b>Límite de Betz:</b> ninguna máquina puede extraer más del <b>16/27 ≈ 0,593</b> (59,3 %) de esa potencia. Es el máximo teórico del coeficiente de potencia Cp.</p>
+                <div class="formula">Cp = P_extraída / P_viento &nbsp;≤&nbsp; 0,593</div>
+                <p><b>Ángulo de paso (pitch, β):</b> es la "inclinación" de las aspas. Al <b>abanicar</b> la pala (aumentar β) se reduce el ángulo de ataque, baja la sustentación y el <b>Cp cae</b> (ver la familia de curvas Cp(λ,β)). Con <b>β = 0°</b> se obtiene el máximo Cp. Por eso las turbinas reales:
+                <br>· <b>Por debajo de nominal:</b> mantienen β ≈ 0° para captar toda la energía.
+                <br>· <b>Por encima de nominal:</b> aumentan β (feathering) para que la potencia no supere su límite de diseño (y evitar daños por sobrecarga).
+                <br>En este simulador puedes activar la <b>Regulación automática</b> para verlo, o fijar un β manual y observar cómo baja la potencia.</p>
+                <p><b>Relación de velocidades en punta (TSR, λ):</b></p>
+                <div class="formula">λ = ω · R / v = (π·n·D) / (60·v)</div>
+                <p><b>RPM:</b> n = 60·ω / (2π).</p>
+                <p><b>Velocidades características:</b></p>
+                <p><span class="tag">Cut-in</span> arranque· <span class="tag">Nominal</span> potencia máxima· <span class="tag">Cut-out</span> parada de seguridad por viento excesivo.</p>
+                <p><b>Sistema de control y protección:</b> la turbina NO opera a cualquier viento. El controlador supervisa y decide en qué modo está:
+                <br>· <span class="tag">Standby</span> viento &lt; cut-in: el rotor se frena y apenas rota.
+                <br>· <span class="tag">Generando</span> entre cut-in y nominal: β = 0°, máximo Cp.
+                <br>· <span class="tag">Limitando</span> sobre nominal: el pitch se abana para no exceder la potencia nominal.
+                <br>· <span class="tag">Protección / Paro</span> (cut-out o paro de emergencia): las aspas giran a ~90° (feathering total) y el rotor se frena para que no haya <b>daño estructural</b> por sobrecarga. Así, sí hay un "control interno" que detiene la máquina cuando el viento es peligroso.
+                </p>
+                <p>Prueba el <b>🛑 Paro de emergencia</b> del panel de protección, o sube la velocidad del viento por encima del <b>cut-out</b> para ver la secuencia de protección (feathering + freno).</p>
+                <p><b>Energía anual (AEP)</b> si el viento sigue una distribución de Weibull f(v):</p>
+                <div class="formula">AEP = 8760 · ∫ P(v) · f(v) dv</div>
+                <p class="fallo">(Este simulador es puramente didáctico: ignorala pérdidas de transmisión, el efecto de la torre, la rugosidad y la estela. El modelo de Cp es una aproximación genérica. Comprobar también que con el paro de emergencia, aunque el viento sea seguro, la turbina queda detenida hasta que el operador la reanude.)</p>
+            </div>
+        </details>
+
+        <!-- Exportar -->
+        <div class="seccion">
+            <div class="btn-row">
+                <button class="btn sec" id="exportCSV">⬇️ Exportar datos (CSV)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de control del viento -->
+    <div id="ui-panel">
+        <div class="control-group">
+            <label for="windSpeed">Viento a 10 m de altura (m/s)</label>
+            <input type="range" id="windSpeed" min="0" max="30" value="7" step="0.5">
+            <div class="value-display" id="windSpeedValue">7 m/s</div>
+        </div>
+        <div class="control-group">
+            <label for="windDirection">Dirección del Viento (Grados)</label>
+            <input type="range" id="windDirection" min="0" max="360" value="0">
+            <div class="value-display" id="windDirectionValue">0°</div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+    <div id="loading">Cargando el simulador 3D…<br><small>Si la escena no aparece, abre este archivo en un navegador (necesita conexión para Three.js).</small></div>
+
+    <script>
+        /* =====================================================================
+           SIMULADOR DE AEROGENERADOR (HAWT) — ENERGÍAS ALTERNATIVAS
+           Universidad de América · Año 2026 · Docente: Ph.D. Juan Sandoval Herrera
+           Modelo físico + visualización 3D. Uso didáctico (3.º–6.º semestre).
+        ===================================================================== */
+
+        /* ---------- Constantes físicas ---------- */
+        const BETZ = 16 / 27;              // Límite de Betz ≈ 0.593
+        const HORAS_ANO = 8760;
+        const KWH_POR_HOGAR = 2500;        // consumo de referencia para el ejemplo
+
+        /* ---------- Estado ---------- */
+        let scene, camera, renderer, controls;
+        let turbine, nacelle, rotor, particles;
+        let windSpeed = 7;                 // m/s a la altura de referencia (10 m)
+        let windDirection = 0;             // grados
+        let targetYaw = 0;
+        let currentYaw = 0;
+        const YAW_SPEED = 0.02;
+
+        // Parámetros de la turbina (editable por el estudiante)
+        let params = {
+            diametro: 80,      // m
+            hub: 80,           // m
+            ratedKwh: 2000,    // kW
+            cutIn: 3,          // m/s
+            ratedV: 11,        // m/s
+            cutOut: 25,        // m/s
+            cpMax: 0.45,       // eficiencia máxima del rotor
+            rho: 1.225,        // kg/m³
+            zRef: 10,          // altura de referencia del anemómetro (m)
+            alpha: 0.14,       // exponente de Hellmann (cizalladura del viento)
+            pitch: 0,          // ángulo de paso manual (grados)
+            autoPitch: true    // regulación automática (feathering) por defecto
+        };
+        const DEFAULTS = Object.assign({}, params);
+
+        // Modelo Cp(λ): encontramos el λ óptimo y normalizamos al Cp máx dado
+        let optTSR = 8, cpScale = 1;
+        let optCp = 0;                     // Cp máximo alcanzable al pitch actual
+        let optTSR_pitch = 8;              // TSR óptimo al pitch actual
+        const optCache = {};               // caché de óptimos por β (para rendimiento)
+        let bladeMeshes = [];              // para animar el pitch en 3D
+
+        // Acumulador de energía (con salto de tiempo didáctico ×3600)
+        const TIME_WARP = 3600;            // 1 s real de la app ≈ 1 h simulada
+        let energyKWh = 0;
+        let simHours = 0;
+
+        // ---------- Sistema de control y protección ----------
+        // Máquina de estados: la turbina decide en qué modo operar según el viento.
+        let turbineState = 'standby';      // 'standby' | 'generating' | 'limiting' | 'protection'
+        let protectReason = '';
+        let manualStop = false;            // paro de emergencia activado por el usuario
+        let targetPitchDeg = 0;            // pitch objetivo que pide el controlador (grados)
+        let currentPitchVisual = 0;        // pitch animado en 3D (grados) — para que el feathering "se vea"
+        let rotorSpin = 0;                 // velocidad angular visual actual del rotor (para frenado suave)
+        const PITCH_RESPONSE = 0.06;       // rapidez del feathering (interpolación)
+        const ROTOR_RESPONSE = 0.04;       // rapidez de aceleración / frenado del rotor
+        const protectionLog = [];          // historial de eventos del controlador
+
+        init();
+
+        /* ================== INIT ================== */
+        function init() {
+            if (typeof THREE === 'undefined') {
+                document.getElementById('loading').innerHTML = 'No se pudo cargar la librería 3D (necesitas internet para Three.js).<br>El resto del laboratorio (física, curvas y protecciones) sí funciona en un navegador.';
+                calculateModel(); bindControls(); refreshPhysics(); drawAEP();
+                return;
+            }
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            scene.fog = new THREE.Fog(0x87CEEB, 60, 400);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 2000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.maxPolarAngle = Math.PI / 2 - 0.05;
+            controls.update();
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+            dirLight.position.set(80, 160, 80);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.set(2048,2048);
+            dirLight.shadow.camera.near = 0.1;
+            dirLight.shadow.camera.far = 500;
+            scene.add(dirLight);
+
+            // Fondo del cielo (degradado) + niebla para fundir el paisaje
+            scene.background = new THREE.CanvasTexture(makeSkyTexture());
+            scene.fog = new THREE.Fog(0xd6e7f5, 90, 480);
+
+            // Suelo de pasto con textura procedural
+            const groundMat = new THREE.MeshLambertMaterial({ map: makeGrassTexture() });
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Paisaje coherente: montañas, casas en la lejanía y árboles
+            createMountains();
+            createHouses();
+            createTrees();
+
+            buildTurbine();
+            buildWindParticles();
+            frameModel();
+            bindUI();
+            bindParams();
+            bindControls();
+            calculateModel();
+            refreshPhysics();
+            drawAEP();
+
+            window.addEventListener('resize', onWindowResize);
+            window.onload = function(){ document.getElementById('loading').style.display='none'; animate(); };
+        }
+
+        /* ================== MODELO Cp(λ, β) ================== */
+        /* Modelo empírico clásico de Cp en función del TSR (λ) y del
+           ángulo de paso (β, en grados). β = 0 da el Cp máximo (β se "abana");
+           al aumentar β el rotor se vuelve menos eficiente y cae la potencia. */
+        function cpModelRaw(tsr, beta){
+            if (tsr <= 0.02) return 0;
+            const b = Math.max(0, beta);          // clamp: pitch negativo no aumenta Cp
+            const inv = 1 / (tsr + 0.08 * b) - 0.035 / (b * b * b + 1);
+            const lambdaI = 1 / inv;
+            if (!isFinite(lambdaI) || lambdaI <= 0) return 0;
+            return Math.max(0, 0.5 * (116 / lambdaI - 0.4 * b - 5) * Math.exp(-21 / lambdaI));
+        }
+        function cpFromTSR(tsr, beta){ return Math.max(0, cpModelRaw(tsr, beta || 0) * cpScale); }
+
+        // Busca el λ óptimo (y el Cp máximo) para un β dado; con caché
+        function optForBeta(beta){
+            const key = Math.round(beta / 2) * 2;
+            if (optCache[key]) return optCache[key];
+            let best = 0, btsr = 6;
+            for (let t = 0.05; t <= 20; t += 0.05){
+                const c = cpModelRaw(t, beta);
+                if (c > best){ best = c; btsr = t; }
+            }
+            optCache[key] = { cp: best * cpScale, tsr: btsr };
+            return optCache[key];
+        }
+
+        // Normaliza el modelo al Cp máx definido por el usuario (en β = 0)
+        function calculateModel(){
+            let maxRaw = 0, tsr = 8;
+            for (let t = 0.05; t <= 20; t += 0.05){
+                const c = cpModelRaw(t, 0);
+                if (c > maxRaw){ maxRaw = c; tsr = t; }
+            }
+            optTSR = tsr;
+            cpScale = maxRaw > 0 ? params.cpMax / maxRaw : 1;
+            for (const k in optCache) delete optCache[k];
+            const o = optForBeta(params.pitch);
+            optTSR_pitch = o.tsr; optCp = o.cp;
+        }
+
+        function sweptArea(){ return Math.PI * Math.pow(params.diametro/2, 2); }
+
+        /* --- Perfil vertical del viento (ley de potencia / Hellmann) ---
+           v(z) = v_ref · (z / z_ref)^α
+           El deslizador (windSpeed) es el viento a la altura de REFERENCIA (zRef).
+           La altura del buje (hub) determina el viento real que alcanza el rotor:
+           si subes la torre, el viento en el rotor crece → y como P ∝ v³, la
+           potencia disponible aumenta. Esto es lo que justifica las torres altas. */
+        function windAtHeight(z, vRef){ return vRef * Math.pow(z / params.zRef, params.alpha); }
+        function hubWindFromRef(vRef){ return windAtHeight(params.hub, vRef); }
+
+        // Potencia disponible del viento (kW) — v es la velocidad EN EL BUJE
+        function availWindKW(vHub){ return 0.5 * params.rho * sweptArea() * vHub*vHub*vHub / 1000; }
+
+        /* --- Pitch: ángulo de paso efectivo ---
+           Con regulación AUTOMÁTICA (turbina real): β ≈ 0 por debajo de nominal
+           (máximo Cp) y "feathering" por encima para sostener la potencia nominal.
+           Manual: el estudiante fija β y ve caer Cp y potencia. */
+        function autoPitchDeg(vHub){
+            // β que lleva la potencia a la nominal: Cp_requerido = P_nom / P_disponible
+            const targetCp = params.ratedKwh / availWindKW(vHub);
+            for (let b = 0; b <= 45; b += 0.5){
+                const o = optForBeta(b);
+                const lam = o.tsr * params.ratedV / vHub;      // velocidad limitada arriba de nominal
+                if (cpFromTSR(lam, b) <= targetCp) return b;
+            }
+            return 45;
+        }
+        function effectivePitch(vHub){
+            if (params.autoPitch){
+                if (vHub <= params.ratedV) return 0;                       // máx. Cp
+                return autoPitchDeg(vHub);                                  // feathering
+            }
+            return params.pitch;
+        }
+
+        // λ (TSR) de operación: óptimo para el β por debajo de nominal, y capturado arriba
+        function lambdaAt(vHub, beta){
+            const o = optForBeta(beta);
+            if (vHub <= params.ratedV) return o.tsr;
+            return o.tsr * params.ratedV / vHub;
+        }
+
+        // Curva de potencia real (kW) — v en el buje, con el pitch efectivo.
+        // Si la turbina está en paro de emergencia, no genera (protección).
+        function powerCurveKW(vHub){
+            if (manualStop) return 0;
+            if (vHub < params.cutIn || vHub > params.cutOut) return 0;
+            const beta = effectivePitch(vHub);
+            const cp = cpFromTSR(lambdaAt(vHub, beta), beta);
+            const p = 0.5 * params.rho * sweptArea() * cp * vHub*vHub*vHub / 1000;
+            return Math.min(p, params.ratedKwh);
+        }
+
+        // ------------------ CONTROLADOR (máquina de estados) ------------------
+        // Decidimos en qué modo está la turbina y qué pitch pide, según el viento.
+        function effectivePitchForState(vHub){
+            if (manualStop) return 90;                                   // paro: feathering total
+            if (vHub < params.cutIn) return 0;                           // standby: reposo
+            if (vHub > params.cutOut) return 90;                         // protección por viento extremo
+            if (vHub > params.ratedV) return params.autoPitch ? autoPitchDeg(vHub) : params.pitch;   // limitar a nominal
+            return params.autoPitch ? 0 : params.pitch;                  // por debajo de nominal: máx. Cp
+        }
+        function controlStep(vHub){
+            let st, reason;
+            if (manualStop){ st = 'protection'; reason = 'Paro de emergencia (manual) — aspas en feathering'; }
+            else if (vHub < params.cutIn){ st = 'standby'; reason = 'Viento < cut-in (' + params.cutIn + ' m/s)'; }
+            else if (vHub > params.cutOut){ st = 'protection'; reason = 'Protección por viento extremo (> cut-out ' + params.cutOut + ' m/s)'; }
+            else if (vHub > params.ratedV){ st = params.autoPitch ? 'limiting' : 'generating'; reason = params.autoPitch ? 'Regulación (feathering) para no exceder la nominal' : 'Generando (pitch manual)'; }
+            else { st = 'generating'; reason = 'Generando al máximo Cp (β = 0°)'; }
+            return { state: st, pitch: effectivePitchForState(vHub), reason: reason };
+        }
+        // Registra cambios de estado en el historial de protección
+        function logControl(msg){
+            const t = new Date().toLocaleTimeString();
+            protectionLog.push(t + ' — ' + msg);
+            if (protectionLog.length > 12) protectionLog.shift();
+        }
+        // Actualiza el panel de control/protección
+        function renderProtection(st, reason, danger){
+            const stEl = document.getElementById('protState');
+            const rsEl = document.getElementById('protReason');
+            const logEl = document.getElementById('protLog');
+            const cls = danger ? 'rojo' : (st === 'limiting' ? 'ambar' : (st === 'generating' ? 'verde' : 'gris'));
+            const label = { standby:'⚙️ Standby', generating:'⚡ Generando', limiting:'🔶 Limitando (feathering)', protection:'🛑 Protección / PARO' }[st] || st;
+            stEl.className = 'status ' + cls;
+            stEl.textContent = label;
+            rsEl.textContent = reason;
+            logEl.innerHTML = protectionLog.slice().reverse().map(m => '<div style="font-size:.72em;color:#cfe2f0;opacity:.9">' + m + '</div>').join('');
+        }
+
+        // Velocidad angular del rotor (rad/s) — máquina de velocidad variable.
+        // Devuelve 0 (rotor frenado) si está en paro, en standby o en protección.
+        function rotorOmega(vHub){
+            const R = params.diametro / 2;
+            if (manualStop) return 0;
+            if (vHub < params.cutIn || vHub > params.cutOut) return 0;
+            return lambdaAt(vHub, effectivePitch(vHub)) * vHub / R;
+        }
+
+        /* ================== TURBINA 3D ================== */
+        function buildTurbine(){
+            if (turbine){ scene.remove(turbine); }
+            bladeMeshes = [];
+
+            turbine = new THREE.Group();
+            const towerMaterial = new THREE.MeshStandardMaterial({ color:0xe8e8e8, roughness:0.6, metalness:0.2 });
+            const H = params.hub;
+            const towerH = H;
+
+            const towerGeo = new THREE.CylinderGeometry(H*0.045, H*0.09, towerH, 32);
+            const tower = new THREE.Mesh(towerGeo, towerMaterial);
+            tower.position.y = towerH / 2;
+            tower.castShadow = true; tower.receiveShadow = true;
+            turbine.add(tower);
+
+            nacelle = new THREE.Group();
+            nacelle.position.y = towerH;
+
+            const nLen = H*0.25, nW = H*0.09, nH = H*0.11;
+            const nMesh = new THREE.Mesh(new THREE.BoxGeometry(nW, nH, nLen), towerMaterial);
+            nMesh.position.z = -nLen/4;
+            nMesh.position.y = nH/2;
+            nMesh.castShadow = true;
+            nacelle.add(nMesh);
+
+            rotor = new THREE.Group();
+            const R = params.diametro / 2;
+            rotor.position.set(0, nH/2, nLen/2);
+            nacelle.add(rotor);
+
+            const hubGeo = new THREE.SphereGeometry(R*0.06, 32, 16);
+            hubGeo.scale(1,1,1.5);
+            const hub = new THREE.Mesh(hubGeo, towerMaterial);
+            hub.castShadow = true;
+            rotor.add(hub);
+
+            const bladeLen = R;
+            const bladeMaterial = new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.5 });
+            const w = R*0.06;
+            for (let i = 0; i < 3; i++){
+                const bg = new THREE.Group();
+                const shape = new THREE.Shape();
+                shape.moveTo(0,0);
+                shape.lineTo(w*1.1, R*0.12);
+                shape.lineTo(w*0.28, bladeLen);
+                shape.lineTo(-w*0.28, bladeLen);
+                shape.lineTo(-w*1.1, R*0.12);
+                shape.lineTo(0,0);
+                const settings = { depth: R*0.01, bevelEnabled:true, bevelSegments:2, steps:2, bevelSize:R*0.006, bevelThickness:R*0.006 };
+                const bladeGeo = new THREE.ExtrudeGeometry(shape, settings);
+                bladeGeo.translate(0,0,-R*0.005);
+                const bladeMesh = new THREE.Mesh(bladeGeo, bladeMaterial);
+                bladeMesh.castShadow = true;
+                bladeMesh.position.y = R*0.04;
+                bladeMesh.rotation.x = 0.2;   // pequeño cono / twist fijo
+                bladeMesh.rotation.y = 0;     // el pitch se aplica aquí (girar sobre el eje de la pala)
+                bg.add(bladeMesh);
+                bg.rotation.z = i * (Math.PI*2/3);
+                rotor.add(bg);
+                bladeMeshes.push(bladeMesh);
+            }
+
+            turbine.add(nacelle);
+            scene.add(turbine);
+            applyPitchVisual(params.pitch);
+        }
+
+        // Gira todas las aspas sobre su propio eje longitudinal (pitch / feathering)
+        function applyPitchVisual(beta){
+            const rad = (beta * Math.PI) / 180;
+            bladeMeshes.forEach(m => { m.rotation.y = rad; });
+        }
+
+        function buildWindParticles(){
+            if (particles){ scene.remove(particles); }
+            const count = 600;
+            const range = Math.max(80, params.hub * 1.3);
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(count * 3);
+            for (let i = 0; i < count*3; i+=3){
+                pos[i]   = (Math.random()-0.5) * range;
+                pos[i+1] = Math.random() * (params.hub*0.9);
+                pos[i+2] = (Math.random()-0.5) * range;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+            const mat = new THREE.PointsMaterial({ color:0xffffff, size:0.6, transparent:true, opacity:0.55 });
+            particles = new THREE.Points(geo, mat);
+            scene.add(particles);
+        }
+
+        /* ---------- Paisaje (procedural, sin assets externos) ---------- */
+
+        // Cielo con degradado: cenit azul profundo -> horizonte claro
+        function makeSkyTexture(){
+            const c = document.createElement('canvas');
+            c.width = 2; c.height = 512;
+            const x = c.getContext('2d');
+            const g = x.createLinearGradient(0, 0, 0, 512);
+            g.addColorStop(0.0,  '#2a6fb0');
+            g.addColorStop(0.45, '#7fb3d7');
+            g.addColorStop(0.72, '#cfe6f5');
+            g.addColorStop(1.0,  '#e8f3fa');
+            x.fillStyle = g; x.fillRect(0, 0, 2, 512);
+            return c;
+        }
+
+        // Textura de pasto con manchas y briznas
+        function makeGrassTexture(){
+            const s = 256;
+            const c = document.createElement('canvas'); c.width = c.height = s;
+            const x = c.getContext('2d');
+            x.fillStyle = '#5a9a55'; x.fillRect(0, 0, s, s);
+            for (let i = 0; i < 6500; i++){
+                const r = Math.random();
+                x.fillStyle = r < 0.33 ? 'rgba(70,130,70,0.55)'
+                            : r < 0.66 ? 'rgba(125,178,92,0.50)'
+                            : 'rgba(90,145,82,0.45)';
+                x.fillRect(Math.random()*s, Math.random()*s, 2, 2 + Math.random()*4);
+            }
+            const t = new THREE.CanvasTexture(c);
+            t.wrapS = t.wrapT = THREE.RepeatWrapping;
+            t.repeat.set(60, 60);
+            return t;
+        }
+
+        // Montañas en la distancia (anillos progresivamente más claros por la niebla)
+        function createMountains(){
+            const group = new THREE.Group();
+            const rings = [
+                { d: 230, n: 9,  color: 0x5f8a63 },   // cercanas (verdes)
+                { d: 300, n: 8,  color: 0x718f9c },   // medias
+                { d: 380, n: 7,  color: 0x8d9fac }    // lejanas (azuladas)
+            ];
+            rings.forEach(r => {
+                const mat = new THREE.MeshLambertMaterial({ color: r.color });
+                for (let i = 0; i < r.n; i++){
+                    const t = r.n === 1 ? 0.5 : i / (r.n - 1);
+                    const x = -r.d*1.5 + t*r.d*3.0 + (Math.random()*30 - 15);
+                    const z = -r.d*0.75 + (Math.random()*40 - 20);
+                    const h = 55 + Math.random()*70 + (r.d - 230)*0.15;
+                    const rad = 45 + Math.random()*35;
+                    const m = new THREE.Mesh(new THREE.ConeGeometry(rad, h, 6), mat);
+                    m.position.set(x, h/2 - 3, z);
+                    m.rotation.y = Math.random()*Math.PI;
+                    m.castShadow = true;
+                    group.add(m);
+                }
+            });
+            scene.add(group);
+        }
+
+        // Casas pequeñas al pie de las montañas (lejanía)
+        function createHouses(){
+            const group = new THREE.Group();
+            const wallMat = new THREE.MeshLambertMaterial({ color: 0xe6d8c2 });
+            const roofMat = new THREE.MeshLambertMaterial({ color: 0x8a4a2f });
+            const winMat  = new THREE.MeshLambertMaterial({ color: 0x8fc0d6 });
+            const spots = [[-110,-95],[-70,-125],[-25,-105],[20,-130],[60,-100],[95,-120],[-45,-140],[130,-115]];
+            spots.forEach(p => {
+                const x = p[0], z = p[1];
+                const w = 5 + Math.random()*3, h = 3.2 + Math.random()*1.8, dpt = 5 + Math.random()*2.5;
+                const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, dpt), wallMat);
+                wall.position.set(x, h/2, z); wall.castShadow = true;
+                const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w, dpt)*0.78, h*0.95, 4), roofMat);
+                roof.position.set(x, h + h*0.48, z); roof.rotation.y = Math.PI/4; roof.castShadow = true;
+                const win = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.12), winMat);
+                win.position.set(x - w*0.2, h*0.55, z + dpt/2 + 0.07);
+                group.add(wall, roof, win);
+            });
+            scene.add(group);
+        }
+
+        // Árboles repartidos por el pasto (evitando la zona frontal a la cámara)
+        function createTrees(){
+            const group = new THREE.Group();
+            const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2b });
+            const leafMats = [0x2f6b3a, 0x3d7f47, 0x4c8c46].map(c => new THREE.MeshLambertMaterial({ color: c }));
+            for (let i = 0; i < 48; i++){
+                const ang = Math.random()*Math.PI*2;
+                const r = 55 + Math.random()*140;
+                const x = Math.cos(ang)*r, z = Math.sin(ang)*r;
+                if (Math.abs(z) < 22) continue;         // no bloquear el frente de la cámara
+                const th = 2 + Math.random()*3;
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, th, 6), trunkMat);
+                trunk.position.set(x, th/2, z);
+                const lh = 6 + Math.random()*5 + r*0.02;
+                const leaf = new THREE.Mesh(new THREE.ConeGeometry(1.7 + Math.random()*1.2, lh, 7), leafMats[i % 3]);
+                leaf.position.set(x, th + lh/2, z);
+                leaf.castShadow = true;
+                group.add(trunk, leaf);
+            }
+            scene.add(group);
+        }
+
+        function frameModel(){
+            const h = params.hub;
+            camera.position.set(h*1.15, h*0.95, h*1.35);
+            controls.target.set(0, h*0.6, 0);
+            controls.minDistance = h*0.35;
+            controls.maxDistance = h*3.5;
+            controls.update();
+        }
+
+        /* ================== UI: viento ================== */
+        function bindUI(){
+            const s = document.getElementById('windSpeed');
+            const sv = document.getElementById('windSpeedValue');
+            const d = document.getElementById('windDirection');
+            const dv = document.getElementById('windDirectionValue');
+            s.addEventListener('input', e => {
+                windSpeed = parseFloat(e.target.value);
+                sv.textContent = `${windSpeed.toFixed(1)} m/s`;
+                refreshPhysics();
+            });
+            d.addEventListener('input', e => {
+                windDirection = parseInt(e.target.value);
+                dv.textContent = `${windDirection}°`;
+                targetYaw = (windDirection * Math.PI) / 180;
+            });
+        }
+
+        /* ================== UI: parámetros ================== */
+        function bindParams(){
+            const main = ['pDiam','pHub','pRated','pCutIn','pRatedV','pCutOut','pRho','pZref'];
+            main.forEach(id => {
+                const el = document.getElementById(id);
+                el.addEventListener('change', () => {
+                    readParamsFromUI();
+                    rebuildTurbineAndPhysics();
+                });
+            });
+            // Selector de terreno (α)
+            const terr = document.getElementById('pTerrain');
+            terr.addEventListener('change', () => {
+                params.alpha = parseFloat(terr.value);
+                rebuildTurbineAndPhysics();
+            });
+            // Pitch manual
+            const pit = document.getElementById('pPitch');
+            const pitv = document.getElementById('pPitchVal');
+            pit.addEventListener('input', () => {
+                params.pitch = parseFloat(pit.value);
+                calculateModel();
+                refreshPhysics();
+                if (!params.autoPitch) applyPitchVisual(params.pitch);
+                pitv.textContent = params.autoPitch ? 'auto' : params.pitch.toFixed(1) + '°';
+            });
+            // Regulación automática
+            const auto = document.getElementById('pAuto');
+            auto.addEventListener('change', () => {
+                params.autoPitch = auto.checked;
+                pit.disabled = auto.checked;
+                calculateModel(); refreshPhysics();
+            });
+            const cp = document.getElementById('pCpMax');
+            const cpv = document.getElementById('pCpMaxVal');
+            cp.addEventListener('input', () => {
+                cpv.textContent = parseFloat(cp.value).toFixed(3);
+                params.cpMax = parseFloat(cp.value);
+                calculateModel(); refreshPhysics(); drawAEP();
+            });
+
+            document.getElementById('applyParams').addEventListener('click', rebuildTurbineAndPhysics);
+            document.getElementById('resetParams').addEventListener('click', () => {
+                params = Object.assign({}, DEFAULTS);
+                writeParamsToUI();
+                calculateModel(); refreshPhysics(); drawAEP();
+            });
+
+            const mw = document.getElementById('meanWind');
+            const mwv = document.getElementById('meanWindVal');
+            mw.addEventListener('input', () => { mwv.textContent = parseFloat(mw.value).toFixed(1) + ' m/s'; drawAEP(); });
+            const sk = document.getElementById('shapeK');
+            const skv = document.getElementById('shapeKVal');
+            sk.addEventListener('input', () => { skv.textContent = parseFloat(sk.value).toFixed(2) + (Math.abs(parseFloat(sk.value)-2) < 0.01 ? ' (Rayleigh)' : ''); drawAEP(); });
+
+            document.getElementById('exportCSV').addEventListener('click', exportCSV);
+        }
+
+        // Botones de control / protección
+        function bindControls(){
+            const stop = document.getElementById('btnStop');
+            const resume = document.getElementById('btnResume');
+            stop.addEventListener('click', () => {
+                if (manualStop) return;
+                manualStop = true;
+                logControl('Paro de emergencia accionado por el operador ❗');
+                refreshPhysics();
+            });
+            resume.addEventListener('click', () => {
+                const vHub = hubWindFromRef(windSpeed);
+                if (vHub > params.cutOut || vHub < params.cutIn){
+                    logControl('Reanudación BLOQUEADA — viento fuera del rango seguro (' + vHub.toFixed(1) + ' m/s)');
+                    refreshPhysics();
+                    return;
+                }
+                manualStop = false;
+                logControl('Paro desactivado. Operación reanudada ✅');
+                refreshPhysics();
+            });
+        }
+
+        function readParamsFromUI(){
+            params.diametro  = Number(document.getElementById('pDiam').value);
+            params.hub       = Number(document.getElementById('pHub').value);
+            params.ratedKwh  = Number(document.getElementById('pRated').value);
+            params.cutIn     = Number(document.getElementById('pCutIn').value);
+            params.ratedV    = Number(document.getElementById('pRatedV').value);
+            params.cutOut    = Number(document.getElementById('pCutOut').value);
+            params.cpMax     = parseFloat(document.getElementById('pCpMax').value);
+            params.rho       = Number(document.getElementById('pRho').value);
+            params.zRef      = Number(document.getElementById('pZref').value);
+            params.alpha     = parseFloat(document.getElementById('pTerrain').value);
+            params.pitch     = parseFloat(document.getElementById('pPitch').value);
+            params.autoPitch = document.getElementById('pAuto').checked;
+        }
+        function writeParamsToUI(){
+            document.getElementById('pDiam').value = params.diametro;
+            document.getElementById('pHub').value = params.hub;
+            document.getElementById('pRated').value = params.ratedKwh;
+            document.getElementById('pCutIn').value = params.cutIn;
+            document.getElementById('pRatedV').value = params.ratedV;
+            document.getElementById('pCutOut').value = params.cutOut;
+            document.getElementById('pCpMax').value = params.cpMax;
+            document.getElementById('pCpMaxVal').textContent = params.cpMax.toFixed(3);
+            document.getElementById('pRho').value = params.rho;
+            document.getElementById('pZref').value = params.zRef;
+            document.getElementById('pTerrain').value = String(params.alpha);
+            document.getElementById('pPitch').value = params.pitch;
+            document.getElementById('pPitchVal').textContent = params.autoPitch ? 'auto' : params.pitch.toFixed(1) + '°';
+            document.getElementById('pAuto').checked = params.autoPitch;
+            document.getElementById('pPitch').disabled = params.autoPitch;
+        }
+        function rebuildTurbineAndPhysics(){
+            readParamsFromUI();
+            buildTurbine();
+            buildWindParticles();
+            frameModel();
+            calculateModel();
+            refreshPhysics();
+            drawAEP();
+        }
+
+        /* ================== FÍSICA EN VIVO / TELEMETRÍA ================== */
+        function refreshPhysics(){
+            const vRef = windSpeed;                       // viento a la altura de referencia
+            const vHub = hubWindFromRef(vRef);            // viento real en el buje (lo que ve el rotor)
+
+            // --- Decisiones del CONTROLADOR (protección, feathering, paro) ---
+            const ctrl = controlStep(vHub);
+            const beta = ctrl.pitch;                      // pitch que pide el controlador (grados)
+            targetPitchDeg = beta;
+            if (ctrl.state !== turbineState){
+                turbineState = ctrl.state;
+                logControl(ctrl.reason);
+            }
+            protectReason = ctrl.reason;
+
+            const avail = availWindKW(vHub);
+            const gen = powerCurveKW(vHub);
+            const omega = rotorOmega(vHub);
+            const R = params.diametro / 2;
+            const rpm = omega * 60 / (2 * Math.PI);
+            const tsr = vHub > 0 ? omega * R / vHub : 0;
+            const cp = gen > 0 ? cpFromTSR(tsr, Math.min(beta, 89)) : 0;
+
+            el('windNow').textContent = vHub.toFixed(1) + ' m/s';
+            el('windRef').textContent = vRef.toFixed(1) + ' m/s';
+            el('availPower').textContent = avail.toFixed(0) + ' kW';
+            el('genPower').textContent = gen.toFixed(0) + ' kW';
+            el('ratedPct').textContent = (gen / params.ratedKwh * 100).toFixed(1) + ' %';
+            el('rpm').textContent = rpm.toFixed(1) + ' rpm';
+            el('tsr').textContent = tsr.toFixed(2);
+            el('cp').textContent = cp.toFixed(3);
+            el('pitchNow').textContent = (beta.toFixed(1) + '°');
+            el('cpBetz').textContent = (cp / BETZ * 100).toFixed(1) + ' %';
+            el('cpBar').style.width = Math.min(100, cp / BETZ * 100) + '%';
+
+            // estado operativo (banner central) + panel de protección
+            const status = el('status');
+            let cls = 'gris', txt = 'Detenido';
+            if (manualStop){ cls='rojo'; txt='PARO DE EMERGENCIA'; }
+            else if (vHub < params.cutIn){ cls='gris'; txt='Standby (< cut-in)'; }
+            else if (vHub > params.cutOut){ cls='rojo'; txt='Protección por viento extremo (> cut-out)'; }
+            else if (vHub > params.ratedV && params.autoPitch){ cls='ambar'; txt='Limitando (β=' + beta.toFixed(1) + '°)'; }
+            else if (vHub > params.ratedV){ cls='ambar'; txt='Sobre-nominal (pitch manual)'; }
+            else { cls='verde'; txt='Generando (máx. Cp, β=0°)'; }
+            status.className = 'status ' + cls;
+            status.textContent = txt;
+            renderProtection(turbineState, protectReason, (turbineState === 'protection'));
+
+            // etiqueta del slider de pitch (indica "auto" si está en ese modo)
+            document.getElementById('pPitchVal').textContent = params.autoPitch
+                ? 'auto → β=' + beta.toFixed(1) + '°'
+                : beta.toFixed(1) + '°';
+
+            drawPowerChart(vHub, gen, avail);
+            drawCpChart(tsr, cp, Math.min(beta, 30));
+            drawProfileChart(vRef, vHub);
+        }
+        function el(id){ return document.getElementById(id); }
+
+        /* ================== GRÁFICOS (canvas 2D) ================== */
+        function drawPowerChart(vNow, pNow, availNow){
+            const cv = document.getElementById('powerChart');
+            const ctx = cv.getContext('2d');
+            const W = cv.width, H = cv.height;
+            ctx.clearRect(0,0,W,H);
+            const mL=44,mR=10,mT=12,mB=28, pw=W-mL-mR, ph=H-mT-mB;
+            const vMax = Math.max(30, params.cutOut+3);
+            const pMax = Math.max(params.ratedKwh*1.2, 100);
+            const X = v => mL + pw*(v/vMax);
+            const Y = p => mT + ph*(1-(p/pMax));
+
+            // grilla
+            ctx.font='9px sans-serif'; ctx.strokeStyle='#dfe6ee'; ctx.fillStyle='#5a6b7c';
+            for (let v=0; v<=vMax; v+=5){ ctx.beginPath(); ctx.moveTo(X(v),mT); ctx.lineTo(X(v),mT+ph); ctx.stroke(); ctx.fillText(v,X(v)-4,H-mB+13); }
+            for (let i=0;i<=5;i++){ const p=pMax*i/5; ctx.beginPath(); ctx.moveTo(mL,Y(p)); ctx.lineTo(mL+pw,Y(p)); ctx.stroke(); ctx.textAlign='right'; ctx.fillText(Math.round(p),mL-5,Y(p)+3); ctx.textAlign='left'; }
+            ctx.fillText('v (m/s)', mL+pw*0.5-16, H-4);
+            ctx.save(); ctx.translate(11,mT+ph*0.5); ctx.rotate(-Math.PI/2); ctx.fillText('kW',0,0); ctx.restore();
+
+            const A = sweptArea();
+            // disponible (gris punteado)
+            ctx.setLineDash([4,3]); ctx.strokeStyle='#93a6bd'; ctx.lineWidth=1.3;
+            ctx.beginPath(); ctx.moveTo(X(0),Y(availWindKW(0)));
+            for (let v=0;v<=vMax;v+=0.5) ctx.lineTo(X(v),Y(availWindKW(v))); ctx.stroke();
+            // Betz (ambar punteado)
+            ctx.strokeStyle='#f0a500';
+            ctx.beginPath(); ctx.moveTo(X(0),Y(BETZ*availWindKW(0)));
+            for (let v=0;v<=vMax;v+=0.5) ctx.lineTo(X(v),Y(BETZ*availWindKW(v))); ctx.stroke();
+            ctx.setLineDash([]);
+            // curva real (verde)
+            ctx.strokeStyle='#1f8b5f'; ctx.lineWidth=2.4;
+            ctx.beginPath(); ctx.moveTo(X(0),Y(powerCurveKW(0)));
+            for (let v=0;v<=vMax;v+=0.5) ctx.lineTo(X(v),Y(powerCurveKW(v))); ctx.stroke();
+
+            // marcadores cut-in/nominal/cut-out
+            ctx.setLineDash([3,3]); ctx.strokeStyle='#c0392b'; ctx.lineWidth=1;
+            [[params.cutIn,'CI'],[params.ratedV,'NOM'],[params.cutOut,'CO']].forEach(m=>{
+                const x=X(m[0]); ctx.beginPath(); ctx.moveTo(x,mT); ctx.lineTo(x,mT+ph); ctx.stroke();
+                ctx.fillStyle='#c0392b'; ctx.fillText(m[1], x-6, mT-2);
+            });
+            ctx.setLineDash([]);
+
+            // punto de operación
+            if (pNow>0){ ctx.fillStyle='#e23b2e'; ctx.beginPath(); ctx.arc(X(vNow),Y(pNow),4,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1.2; ctx.stroke(); }
+        }
+
+        // Perfil vertical del viento v(z) = v_ref·(z/z_ref)^α, con el punto del buje
+        function drawProfileChart(vRef, vHub){
+            const cv = document.getElementById('profileChart');
+            if (!cv) return;
+            const ctx = cv.getContext('2d');
+            const W = cv.width, H = cv.height;
+            ctx.clearRect(0,0,W,H);
+            const mL=40,mR=12,mT=12,mB=26, pw=W-mL-mR, ph=H-mT-mB;
+            const zMax = Math.max(params.hub*1.25, 40);
+            const vMax = Math.max(25, windAtHeight(zMax, vRef)*1.1);
+            const X = v => mL + pw*(v/vMax);
+            const Y = z => mT + ph*(1 - z/zMax);
+
+            // grilla
+            ctx.font='9px sans-serif'; ctx.strokeStyle='#dfe6ee'; ctx.fillStyle='#5a6b7c';
+            ctx.strokeRect(mL, mT, pw, ph);
+            for (let v=0; v<=vMax; v+=5){ ctx.beginPath(); ctx.moveTo(X(v),mT); ctx.lineTo(X(v),mT+ph); ctx.stroke(); ctx.fillText(v, X(v)-5, H-8); }
+            for (let z=0; z<=zMax; z+=20){ ctx.beginPath(); ctx.moveTo(mL,Y(z)); ctx.lineTo(mL+pw,Y(z)); ctx.stroke(); ctx.textAlign='right'; ctx.fillText(z, mL-5, Y(z)+3); ctx.textAlign='left'; }
+            ctx.fillText('v (m/s)', mL+pw*0.5-16, H-8);
+            ctx.save(); ctx.translate(12, mT+ph*0.5); ctx.rotate(-Math.PI/2); ctx.fillText('altura (m)', 0,0); ctx.restore();
+
+            // curva v(z)
+            ctx.strokeStyle='#1f6f9b'; ctx.lineWidth=2.3;
+            ctx.beginPath();
+            for (let z=0; z<=zMax; z+=1){ const v=windAtHeight(z, vRef); const xx=X(v), yy=Y(z); z===0?ctx.moveTo(xx,yy):ctx.lineTo(xx,yy); }
+            ctx.stroke();
+
+            // línea del buje y punto de operación
+            ctx.setLineDash([4,3]); ctx.strokeStyle='#c0392b'; ctx.lineWidth=1;
+            ctx.beginPath(); ctx.moveTo(mL,Y(params.hub)); ctx.lineTo(mL+pw,Y(params.hub)); ctx.stroke(); ctx.setLineDash([]);
+            ctx.fillStyle='#c0392b'; ctx.fillText('buje '+params.hub+' m', mL+4, Y(params.hub)-4);
+            ctx.fillStyle='#e23b2e';
+            ctx.beginPath(); ctx.arc(X(vHub), Y(params.hub), 4, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle='#fff'; ctx.lineWidth=1.2; ctx.stroke();
+
+            document.getElementById('hubLabel').textContent = params.hub + ' m';
+        }
+
+        function drawCpChart(tsrNow, cpNow, betaNow){
+            const cv = document.getElementById('cpChart');
+            const ctx = cv.getContext('2d');
+            const W=cv.width,H=cv.height; ctx.clearRect(0,0,W,H);
+            const mL=40,mR=10,mT=12,mB=24,pw=W-mL-mR,ph=H-mT-mB;
+            const xMax=15, yMax=0.65;
+            const X=v=>mL+pw*(v/xMax), Y=c=>mT+ph*(1-(c/yMax));
+            ctx.font='9px sans-serif'; ctx.strokeStyle='#dfe6ee'; ctx.fillStyle='#5a6b7c';
+            for(let v=0;v<=xMax;v+=2.5){ctx.beginPath();ctx.moveTo(X(v),mT);ctx.lineTo(X(v),mT+ph);ctx.stroke();ctx.fillText(v,X(v)-6,H-mB+12);}
+            for(let i=0;i<=5;i++){const c=yMax*i/5;ctx.beginPath();ctx.moveTo(mL,Y(c));ctx.lineTo(mL+pw,Y(c));ctx.stroke();ctx.textAlign='right';ctx.fillText(c.toFixed(1),mL-5,Y(c)+3);ctx.textAlign='left';}
+            ctx.fillText('λ (TSR)',mL+pw*0.5-14,H-4);
+            ctx.save();ctx.translate(9,mT+ph*0.5);ctx.rotate(-Math.PI/2);ctx.fillText('Cp',0,0);ctx.restore();
+
+            // línea de Betz
+            ctx.setLineDash([4,3]); ctx.strokeStyle='#f0a500'; ctx.lineWidth=1.3;
+            ctx.beginPath(); ctx.moveTo(mL,Y(BETZ)); ctx.lineTo(mL+pw,Y(BETZ)); ctx.stroke();
+            ctx.setLineDash([]); ctx.fillStyle='#f0a500'; ctx.fillText('Betz 0,593',mL+pw-58,Y(BETZ)-4);
+
+            // familia de curvas Cp(λ, β): β = 0, 10, 20, 30
+            const betas = [0, 10, 20, 30];
+            const cols = ['#1f8b5f', '#4aa66a', '#8bbf6a', '#c9b06a'];
+            betas.forEach((b, i) => {
+                ctx.strokeStyle = cols[i]; ctx.lineWidth = (b === 0) ? 2.2 : 1.4;
+                if (b === 0) ctx.setLineDash([]); else ctx.setLineDash([5,4]);
+                ctx.beginPath(); ctx.moveTo(X(0), Y(cpFromTSR(0, b)));
+                for (let v = 0; v <= xMax; v += 0.1) ctx.lineTo(X(v), Y(cpFromTSR(v, b)));
+                ctx.stroke();
+                if (b === betaNow) {
+                    // pico de la curva activa
+                    const o = optForBeta(b);
+                    ctx.fillStyle = cols[i]; ctx.fillText('β=' + b + '°', X(o.tsr), Y(o.cp) - 6);
+                }
+            });
+            ctx.setLineDash([]);
+            // Leyenda
+            ctx.fillStyle = '#2c3e50'; ctx.font = '8px sans-serif';
+            ctx.fillText('curvas de izquierda a derecha: β = 0°, 10°, 20°, 30°', mL, mT - 2);
+
+            // punto de operación (con el β actual)
+            if (cpNow > 0){
+                const o = optForBeta(betaNow || 0);
+                ctx.fillStyle = '#e23b2e';
+                ctx.beginPath(); ctx.arc(X(tsrNow), Y(cpNow), 4, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2; ctx.stroke();
+                ctx.fillStyle = '#2c3e50'; ctx.font='9px sans-serif';
+                ctx.fillText('operativo (β=' + (betaNow||0).toFixed(0) + '°)', X(tsrNow)+6, Y(cpNow)-8);
+            }
+        }
+
+        /* ================== AEP / WEIBULL ================== */
+        function gamma(x){
+            const g=7, c=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+            if(x<0.5) return Math.PI/( Math.sin(Math.PI*x)*gamma(1-x) );
+            x-=1; let a=c[0]; const t=x+g+0.5;
+            for(let i=1;i<g+2;i++) a+=c[i]/(x+i);
+            return Math.sqrt(2*Math.PI)*Math.pow(t,x+0.5)*Math.exp(-t)*a;
+        }
+        function weibullPdf(v,c,k){ return (k/c)*Math.pow(v/c,k-1)*Math.exp(-Math.pow(v/c,k)); }
+
+        function drawAEP(){
+            if (typeof THREE === 'undefined' && !document.getElementById('aep')) return;
+            const Umean = parseFloat(document.getElementById('meanWind').value);
+            const k = parseFloat(document.getElementById('shapeK').value);
+            const c = Umean / gamma(1 + 1/k);
+            const dv = 0.25; let aepKWh = 0;
+            for (let v=0; v<=35; v+=dv) aepKWh += powerCurveKW(v) * weibullPdf(v,c,k) * dv;
+            const aepMWh = aepKWh/1000;
+            const cf = aepKWh / (params.ratedKwh * HORAS_ANO);
+            document.getElementById('aep').textContent = aepMWh.toFixed(0) + ' MWh/año';
+            document.getElementById('cf').textContent = (cf*100).toFixed(1) + ' %';
+            document.getElementById('homes').textContent = Math.round(aepKWh / KWH_POR_HOGAR).toLocaleString();
+            drawWindDistChart(Umean, c, k);
+        }
+
+        function drawWindDistChart(Umean,c,k){
+            const cv=document.getElementById('windDistChart');
+            const ctx=cv.getContext('2d');
+            const W=cv.width,H=cv.height; ctx.clearRect(0,0,W,H);
+            const mL=38,mR=10,mT=12,mB=24,pw=W-mL-mR,ph=H-mT-mB;
+            const vMax=Math.max(30, params.cutOut+3);
+            const X=v=>mL+pw*(v/vMax);
+            // obtenemos escala: pico de distribución (marcado por f max) y potencia máx
+            let fMax=0; for(let v=0;v<=vMax;v+=0.1) fMax=Math.max(fMax, weibullPdf(v,c,k));
+            const kMax=params.ratedKwh;
+            const Yf=f=>mT+ph*(1-f/fMax);
+            const Yp=p=>mT+ph*(1-p/kMax);
+            // grilla
+            ctx.font='9px sans-serif'; ctx.strokeStyle='#dfe6ee'; ctx.fillStyle='#5a6b7c';
+            for(let v=0;v<=vMax;v+=5){ctx.beginPath();ctx.moveTo(X(v),mT);ctx.lineTo(X(v),mT+ph);ctx.stroke();ctx.fillText(v,X(v)-4,H-mB+12);}
+            ctx.fillText('v (m/s)',mL+pw*0.5-16,H-4);
+            // distribución de viento (área azul)
+            ctx.fillStyle='rgba(31,111,155,0.25)'; ctx.beginPath(); ctx.moveTo(X(0),mT+ph);
+            for(let v=0;v<=vMax;v+=0.25) ctx.lineTo(X(v),Yf(weibullPdf(v,c,k))); ctx.lineTo(X(vMax),mT+ph); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle='#1f6f9b'; ctx.lineWidth=2; ctx.beginPath();
+            for(let v=0;v<=vMax;v+=0.25){const xx=X(v),yy=Yf(weibullPdf(v,c,k)); v===0?ctx.moveTo(xx,yy):ctx.lineTo(xx,yy);} ctx.stroke();
+            // curva de potencia (verde, escala lado derecho)
+            ctx.strokeStyle='#1f8b5f'; ctx.lineWidth=2.2;
+            ctx.beginPath();
+            for(let v=0;v<=vMax;v+=0.5){const xx=X(v),yy=Yp(powerCurveKW(v)); v===0?ctx.moveTo(xx,yy):ctx.lineTo(xx,yy);}
+            ctx.stroke();
+            // velocidad media
+            ctx.setLineDash([3,3]); ctx.strokeStyle='#c0392b'; ctx.lineWidth=1;
+            ctx.beginPath(); ctx.moveTo(X(Umean),mT); ctx.lineTo(X(Umean),mT+ph); ctx.stroke(); ctx.setLineDash([]);
+            ctx.fillStyle='#c0392b'; ctx.fillText('v̄',X(Umean)-5,mT-2);
+        }
+
+        /* ================== EXPORTAR CSV ================== */
+        function exportCSV(){
+            const vMax=Math.max(30,params.cutOut+3);
+            let rows=['v_buje(m/s),P_disponible_kW,P_Betz_kW,P_generada_kW,Cp,pitch_beta(deg)'];
+            for(let v=0;v<=vMax;v+=0.5){
+                const avail=availWindKW(v);
+                const beta=effectivePitch(v);
+                const gen=powerCurveKW(v);
+                rows.push([v.toFixed(1),avail.toFixed(2),(BETZ*avail).toFixed(2),gen.toFixed(2),(gen/avail).toFixed(3),beta.toFixed(1)].join(','));
+            }
+            const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+            const a=document.createElement('a');
+            a.href=URL.createObjectURL(blob);
+            a.download=`curva_potencia_aerogenerador_D${params.diametro}m.csv`;
+            document.body.appendChild(a); a.click(); a.remove();
+        }
+
+        function onWindowResize(){
+            if(!camera||!renderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        /* ================== ANIMACIÓN ================== */
+        let lastStamp = null;
+        function animate(ts){
+            requestAnimationFrame(animate);
+            if (typeof rotor === 'undefined' || !rotor){ return; }
+
+            // Rotación del rotor según la física (RPM realista, con el viento del buje)
+            const vHubAnim = hubWindFromRef(windSpeed);
+            const omega = rotorOmega(vHubAnim);       // 0 en standby / protección => la turbina se frena
+            const factorVisual = 0.055;               // solo para que se vea bien en 3D
+            // Frenado/aceleración suave del rotor (brake / ramp-up)
+            const targetVisual = omega * factorVisual;
+            rotorSpin += (targetVisual - rotorSpin) * ROTOR_RESPONSE;
+            rotor.rotation.z -= rotorSpin;
+
+            // Feathering suave: las aspas giran hacia el pitch que pide el controlador
+            currentPitchVisual += (targetPitchDeg - currentPitchVisual) * PITCH_RESPONSE;
+            applyPitchVisual(currentPitchVisual);
+
+            // Yaw de la góndola orientada al viento
+            if (nacelle){
+                let diff = targetYaw - currentYaw;
+                while (diff > Math.PI) diff -= Math.PI*2;
+                while (diff < -Math.PI) diff += Math.PI*2;
+                if (Math.abs(diff) > 0.01){
+                    currentYaw += Math.sign(diff)*Math.min(Math.abs(diff), YAW_SPEED);
+                    nacelle.rotation.y = currentYaw;
+                }
+            }
+
+            // Partículas de viento
+            if (particles){
+                const positions = particles.geometry.attributes.position.array;
+                const particleSpeed = (vHubAnim*0.05)+0.12;
+                const dx = Math.sin(targetYaw), dz = Math.cos(targetYaw);
+                const range = Math.max(80, params.hub*1.3);
+                for (let i=0;i<positions.length;i+=3){
+                    positions[i]   -= dx*particleSpeed;
+                    positions[i+2] -= dz*particleSpeed;
+                    if (Math.abs(positions[i])>range || Math.abs(positions[i+2])>range){
+                        positions[i]=(Math.random()-0.5)*range;
+                        positions[i+2]=(Math.random()-0.5)*range;
+                        if(Math.random()>0.5){ positions[i+2]=(dz>0?range:-range)*(Math.random()>0.5?1:-1); positions[i]=(Math.random()-0.5)*range; }
+                    }
+                }
+                particles.geometry.attributes.position.needsUpdate = true;
+            }
+
+            // Acumulador de energía (salto de tiempo didáctico)
+            if (lastStamp !== null){
+                let dtReal = (ts - lastStamp)/1000;   // segundos reales
+                dtReal = Math.min(dtReal, 0.1);
+                simHours   += dtReal * TIME_WARP / 3600;         // time-warp a horas simuladas
+                energyKWh  += powerCurveKW(vHubAnim) * (dtReal * TIME_WARP / 3600);
+            }
+            lastStamp = ts;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a36876e4db26aece',t:'MTc4ODY0NTE4Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

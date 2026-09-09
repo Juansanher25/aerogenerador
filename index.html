@@ -1161,12 +1161,16 @@
             const Umean = parseFloat(document.getElementById('meanWind').value);
             const k = parseFloat(document.getElementById('shapeK').value);
             const c = Umean / gamma(1 + 1/k);
-            const dv = 0.25; let aepKWh = 0;
-            for (let v=0; v<=35; v+=dv) aepKWh += powerCurveKW(v) * weibullPdf(v,c,k) * dv;
-            const aepMWh = aepKWh/1000;
+            const dv = 0.1;
+            let meanPowerKW = 0;
+            for (let v = 0; v <= 35; v += dv) {
+                meanPowerKW += powerCurveKW(v) * weibullPdf(v, c, k) * dv;
+            }
+            const aepKWh = meanPowerKW * HORAS_ANO;
+            const aepMWh = aepKWh / 1000;
             const cf = aepKWh / (params.ratedKwh * HORAS_ANO);
-            document.getElementById('aep').textContent = aepMWh.toFixed(0) + ' MWh/año';
-            document.getElementById('cf').textContent = (cf*100).toFixed(1) + ' %';
+            document.getElementById('aep').textContent = Math.round(aepMWh).toLocaleString() + ' MWh/año';
+            document.getElementById('cf').textContent = (cf * 100).toFixed(1) + ' %';
             document.getElementById('homes').textContent = Math.round(aepKWh / KWH_POR_HOGAR).toLocaleString();
             drawWindDistChart(Umean, c, k);
         }
